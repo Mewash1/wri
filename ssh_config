@@ -1,0 +1,5 @@
+Host ev3
+HostName ev3dev.local
+User robot
+ControlMaster auto
+ControlPath ~/.ssh/master-%r@%h:%p
