@@ -1,5 +1,5 @@
 Host ev3
-HostName ev3dev.local
+HostName 192.168.18.72
 User robot
 ControlMaster auto
 ControlPath ~/.ssh/master-%r@%h:%p
