@@ -21,35 +21,37 @@ import math
 import time
 import os
 
+
 class PID:
     def __init__(self, Kp, Ki, Kd):
         self.Kp = Kp
         self.Ki = Ki
         self.Kd = Kd
-        
+
         self.integral = 0.0
         self.error_prev = 0.0
 
     def reset(self):
         self.integral = 0.0
         self.error_prev = 0.0
-        
+
     def step(self, setpoint, measurement):
         error = setpoint - measurement
 
         proportional = self.Kp * error
-    
+
         self.integral += self.Ki * error
-    
+
         # antiwindup by limiting the maximum and minimum integral
         # self.integral = min(self.integral, 1.0)
         # self.integral = max(self.integral, -1.0)
         differential = self.Kd * (error - self.error_prev)
-    
+
         self.error_prev = error
-    
+
         # return (proportional + self.integral + differential, proportional, self.integral, differential)
         return proportional + self.integral + differential
+
 
 class Kolo(Wheel):
     """
@@ -82,7 +84,7 @@ class Vehicle:
 
     def print_help(self):
         print(
-        """
+            """
 Wybierz komendę:
 - pid - uruchom pida (x y z)
 - reset - przywróć do zera pozycję oraz kąt obrotu robota
@@ -116,21 +118,24 @@ Wybierz komendę:
             if cmd == "help":
                 self.print_help()
             if cmd == "lift":
-                while (self.forklift_sensor.is_released):
+                while self.forklift_sensor.is_released:
                     self.forklift_motor.on(SpeedRPM(40))
-                
+
                 self.forklift_motor.off()
             if cmd == "tfil":
                 self.forklift_motor.on_for_rotations(SpeedRPM(40), -1)
             if cmd == "pid":
+                # 2 0.2 0
                 pid = PID(float(args[0]), float(args[1]), float(args[2]))
-                diff_offset = 0 # to calibrate
-                line_theshold = 0 # to calibrate
+                diff_offset = 0  # to calibrate
+                line_theshold = 0  # to calibrate
 
-                os.system('clear')
-                os.system('clear')
+                os.system("clear")
+                os.system("clear")
                 print("pid", float(args[0]), float(args[1]), float(args[2]))
-                print("i,x,y,theta,diff,steering,right_val,left_val,colorfullness_right,colorfullness_left") # column titles
+                print(
+                    "i,x,y,theta,diff,steering,right_val,left_val,colorfullness_right,colorfullness_left"
+                )  # column titles
 
                 state = "following"
                 turning_steer = 0.0
@@ -140,8 +145,8 @@ Wybierz komendę:
                     left_val = self.color_sensor_left.reflected_light_intensity
                     diff = right_val - left_val + diff_offset
 
-                    x = self.controller.x_pos_mm 
-                    y = self.controller.y_pos_mm 
+                    x = self.controller.x_pos_mm
+                    y = self.controller.y_pos_mm
                     theta = self.controller.theta
 
                     if state == "following":
@@ -155,7 +160,7 @@ Wybierz komendę:
 
                             colorfullness_right = max(color_right) - min(color_right)
                             colorfullness_left = max(color_left) - min(color_left)
-                        else: 
+                        else:
                             colorfullness_left = 0
                             colorfullness_right = 0
 
@@ -166,7 +171,7 @@ Wybierz komendę:
                                 turning_steer = 100
                             else:
                                 turning_steer = -100
-                            
+
                     elif state == "turning":
                         speed = 20
                         steering = turning_steer
@@ -179,9 +184,29 @@ Wybierz komendę:
                         if diff < 5:
                             state = "following"
 
-                    print(",".join([str(x) for x in [i, x, y, theta, diff, steering, right_val, left_val, colorfullness_right, colorfullness_left]]))
+                    print(
+                        ",".join(
+                            [
+                                str(x)
+                                for x in [
+                                    i,
+                                    x,
+                                    y,
+                                    theta,
+                                    diff,
+                                    steering,
+                                    right_val,
+                                    left_val,
+                                    colorfullness_right,
+                                    colorfullness_left,
+                                ]
+                            ]
+                        )
+                    )
 
-                    speed = self.controller.left_motor._speed_native_units(SpeedRPM(speed))
+                    speed = self.controller.left_motor._speed_native_units(
+                        SpeedRPM(speed)
+                    )
                     left_speed = speed
                     right_speed = speed
                     speed_factor = (50 - abs(float(steering))) / 50
@@ -191,27 +216,30 @@ Wybierz komendę:
                     else:
                         left_speed *= speed_factor
 
-                    self.controller.on(SpeedNativeUnits(left_speed), SpeedNativeUnits(right_speed))
-            
+                    self.controller.on(
+                        SpeedNativeUnits(left_speed), SpeedNativeUnits(right_speed)
+                    )
+
             if cmd == "test":
                 pid = PID(float(args[0]), float(args[1]), float(args[2]))
-                diff_offset = 0 # to calibrate
-                line_theshold = 0 # to calibrate
+                diff_offset = 0  # to calibrate
+                line_theshold = 0  # to calibrate
                 print("pid", float(args[0]), float(args[1]), float(args[2]))
 
-                os.system('clear')
-                os.system('clear')
-                print("diff,steering,right_val,left_val,,") # column titles
+                os.system("clear")
+                os.system("clear")
+                print("diff,steering,right_val,left_val,,")  # column titles
                 while True:
                     right_val = self.color_sensor_right.reflected_light_intensity
                     left_val = self.color_sensor_left.reflected_light_intensity
                     diff = right_val - left_val + diff_offset
                     line_found = right_val < line_theshold
-                    print(str(right_val) + "," + str(left_val) + "," + ",") # values to log
+                    print(
+                        str(right_val) + "," + str(left_val) + "," + ","
+                    )  # values to log
 
             print("Done.")
             self.controller.on(SpeedNativeUnits(0), SpeedNativeUnits(0))
-        
 
         self.controller.odometry_stop()
 
