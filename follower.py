@@ -61,8 +61,16 @@ class Vehicle:
         self.color_sensor_right = ColorSensor(INPUT_1)
         self.color_sensor_left = ColorSensor(INPUT_4)
 
-        self.color_sensor_right.red_max, self.color_sensor_right.green_max, self.color_sensor_right.blue_max = 158,234,281
-        self.color_sensor_left.red_max, self.color_sensor_left.green_max, self.color_sensor_left.blue_max = 132,224,145
+        (
+            self.color_sensor_right.red_max,
+            self.color_sensor_right.green_max,
+            self.color_sensor_right.blue_max,
+        ) = (158, 234, 281)
+        (
+            self.color_sensor_left.red_max,
+            self.color_sensor_left.green_max,
+            self.color_sensor_left.blue_max,
+        ) = (132, 224, 145)
 
         self.controller = MoveDifferential(
             OUTPUT_A,
@@ -91,7 +99,7 @@ class Vehicle:
     def sense_colour(self):
         color_right = self.color_sensor_right.rgb
         color_left = self.color_sensor_left.rgb
-        
+
         """
         colorfullness_right = max(color_right) - min(color_right)
         colorfullness_left = max(color_left) - min(color_left)
@@ -105,7 +113,12 @@ class Vehicle:
         colorfullness_right = -color_right[0] + (color_right[1] + color_right[2]) // 2
         colorfullness_left = -color_left[0] + (color_left[1] + color_left[2]) // 2
 
-        print(color_right, -color_right[0] + color_right[1] + color_right[2], color_left, -color_left[0] + color_left[1] + color_left[2])
+        print(
+            color_right,
+            -color_right[0] + color_right[1] + color_right[2],
+            color_left,
+            -color_left[0] + color_left[1] + color_left[2],
+        )
 
         return colorfullness_right, colorfullness_left
 
@@ -219,23 +232,30 @@ class StateFollowing(State):
 
     def step(self):
         diff, right_val, left_val = self.context.sense_line()
-        self.follower.step(diff)
 
         if right_val < 15 and left_val < 15:
+            self.context.speed = 10
+            self.follower.step(diff)
             color_right, color_left = self.context.sense_colour()
         else:
+            self.context.speed = 20
+            self.follower.step(diff)
             color_right = 0
             color_left = 0
 
-        print(right_val, ' ', left_val, ' ', color_right, ' ', color_left) 
+        print(right_val, " ", left_val, " ", color_right, " ", color_left)
 
-        if abs(color_right - color_left) > 10 and max(color_right, color_left) > 50 and self.tick_limit == 0:
+        if (
+            abs(color_right - color_left) > 10
+            and max(color_right, color_left) > 50
+            and self.tick_limit == 0
+        ):
             self.context.set_state(StateEnterBranch())
             if color_right > color_left:
                 self.context.branch_right = True
             else:
                 self.context.branch_right = False
-        
+
         if self.tick_limit > 0:
             self.tick_limit -= 1
 
@@ -259,7 +279,7 @@ class StateEnterBranch(State):
 
         if diff > 20:
             self.context.set_state(StateSearchTarget())
-        #self.context.set_state(StateSearchTarget())
+        # self.context.set_state(StateSearchTarget())
 
 
 class StateSearchTarget(State):
@@ -275,7 +295,7 @@ class StateSearchTarget(State):
         if right_val < 20 and left_val < 20 and self.step_count > 100:
             color_right, color_left = self.context.sense_colour()
 
-            print(color_left, ' ', color_right)
+            print(color_left, " ", color_right)
             if color_left > 50 and color_right > 50:  # TODO: calibration
                 if self.context.holding_package:
                     self.context.set_state(StateDropPackage())
@@ -317,11 +337,11 @@ class StateReturnToLine(State):
 
         self.context.set_state(StateReturnToIntersection())
 
-"""
+
 class StateReturnToIntersection(State):
     def setup(self):
         print("Returning to intersection")
-        self.follower = LineFollower(self._context)
+        # self.follower = LineFollower(self._context)
 
     def step(self):
         diff, right_val, left_val = self.context.sense_line()
@@ -344,7 +364,7 @@ class StateReturnToIntersection(State):
             SpeedRPM(self.context.speed), 90 # TODO: calibrate
         )
         self.context.set_state(StateFollowing())
-
+"""
 
 
 class StateExitIntersection(State):
@@ -363,11 +383,14 @@ class StateExitIntersection(State):
         if diff > 20:
             self.context.set_state(StateFollowing())
         """
+        self.context.controller.on_for_distance(
+            SpeedRPM(self.context.speed), self.context.sensor_offset
+        )
         if self.context.branch_right:
-            self.context.controller.turn_degrees(SpeedRPM(self.context.speed), 30)
+            self.context.controller.turn_degrees(SpeedRPM(self.context.speed), 90)
         else:
-            self.context.controller.turn_degrees(SpeedRPM(self.context.speed), -30)
-        
+            self.context.controller.turn_degrees(SpeedRPM(self.context.speed), -90)
+
         self.context.set_state(StateFollowing(100))
 
 
@@ -379,7 +402,6 @@ class StateDropPackage(State):
         self.context.controller.on_for_distance(
             SpeedRPM(self.context.speed), 10
         )  # TODO: calibrate
-
 
         self.context.forklift_motor.on_for_rotations(SpeedRPM(40), -1)
         self.context.set_state(StateFinish())
