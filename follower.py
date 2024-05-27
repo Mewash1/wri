@@ -54,7 +54,8 @@ class Vehicle:
     def __init__(self):
         self.wheel_separation = 178.5
         self.sensor_offset = 88.0
-        self.speed = 20
+        self.speed = 50
+        self.default_speed = 50
         self.forklift_motor = MediumMotor(OUTPUT_C)
         self.forklift_sensor = TouchSensor(INPUT_2)
 
@@ -166,33 +167,14 @@ class Vehicle:
             if cmd == "start":
                 break
 
-        # print("i,x,y,theta,diff,steering,right_val,left_val")  # column titles
         while True:
             self.state.step()
 
-            """
-            print(
-                ",".join(
-                    [
-                        str(x)
-                        for x in [
-                            i,
-                            x,
-                            y,
-                            theta,
-                            diff,
-                            steering,
-                            right_val,
-                            left_val,
-                        ]
-                    ]
-                )
-            )"""
 
 
 class LineFollower:
     def __init__(self, context: Vehicle):
-        self.pid = PID(2.5, 0.2, 0)
+        self.pid = PID(2.5, 0.18, 0)
         self.context = context
 
     def step(self, diff):
@@ -233,198 +215,7 @@ class StateFollowing(State):
     def step(self):
         diff, right_val, left_val = self.context.sense_line()
 
-        if right_val < 15 and left_val < 15:
-            self.context.speed = 10
-            self.follower.step(diff)
-            color_right, color_left = self.context.sense_colour()
-        else:
-            self.context.speed = 20
-            self.follower.step(diff)
-            color_right = 0
-            color_left = 0
-
-        print(right_val, " ", left_val, " ", color_right, " ", color_left)
-
-        if (
-            abs(color_right - color_left) > 10
-            and max(color_right, color_left) > 50
-            and self.tick_limit == 0
-        ):
-            self.context.set_state(StateEnterBranch())
-            if color_right > color_left:
-                self.context.branch_right = True
-            else:
-                self.context.branch_right = False
-
-        if self.tick_limit > 0:
-            self.tick_limit -= 1
-
-
-class StateEnterBranch(State):
-    def setup(self):
-        print("Entering branch")
-        """
-        if self.context.branch_right:
-            self.context.controller.turn_degrees(SpeedRPM(self.context.speed), -35)
-        else:
-            self.context.controller.turn_degrees(SpeedRPM(self.context.speed), 35)
-        """
-
-    def step(self):
-        diff, _, _ = self.context.sense_line()
-        if self.context.branch_right:
-            self.context.set_speed(self.context.speed, 80)
-        else:
-            self.context.set_speed(self.context.speed, -80)
-
-        if diff > 20:
-            self.context.set_state(StateSearchTarget())
-        # self.context.set_state(StateSearchTarget())
-
-
-class StateSearchTarget(State):
-    def setup(self):
-        print("Searching for target")
-        self.follower = LineFollower(self._context)
-        self.step_count = 0
-
-    def step(self):
-        diff, right_val, left_val = self.context.sense_line()
         self.follower.step(diff)
-
-        if right_val < 20 and left_val < 20 and self.step_count > 100:
-            color_right, color_left = self.context.sense_colour()
-
-            print(color_left, " ", color_right)
-            if color_left > 50 and color_right > 50:  # TODO: calibration
-                if self.context.holding_package:
-                    self.context.set_state(StateDropPackage())
-                else:
-                    self.context.set_state(StatePickupPackage())
-
-        self.step_count += 1
-
-    pass
-
-
-class StatePickupPackage(State):
-    def setup(self):
-        print("Picking up package")
-
-    def step(self):
-        self.context.controller.on_for_distance(
-            SpeedRPM(self.context.speed), 0
-        )  # TODO: calibrate
-
-        while self.context.forklift_sensor.is_released:
-            self.context.forklift_motor.on(SpeedRPM(40))
-
-        self.context.forklift_motor.off()
-        self.context.set_state(StateReturnToLine())
-
-        self.context.holding_package = True
-
-
-class StateReturnToLine(State):
-    def setup(self):
-        print("Returning to line")
-
-    def step(self):
-        self.context.controller.on_for_distance(
-            SpeedRPM(self.context.speed), 100
-        )  # TODO: calibrate
-        self.context.controller.turn_degrees(SpeedRPM(self.context.speed), 180)
-
-        self.context.set_state(StateReturnToIntersection())
-
-
-class StateReturnToIntersection(State):
-    def setup(self):
-        print("Returning to intersection")
-        # self.follower = LineFollower(self._context)
-
-    def step(self):
-        diff, right_val, left_val = self.context.sense_line()
-        self.follower.step(diff)
-
-        if right_val < 15 and left_val < 15:
-            self.context.set_state(StateExitIntersection())
-
-
-"""
-class StateReturnToIntersection(State):
-    def setup(self):
-        print("Returning to intersection (odometry)")
-
-    def step(self):
-        self.context.controller.on_to_coordinates(
-            SpeedRPM(self.context.speed), 0, 200 # TODO: calibrate
-        )
-        self.context.controller.turn_to_angle(
-            SpeedRPM(self.context.speed), 90 # TODO: calibrate
-        )
-        self.context.set_state(StateFollowing())
-"""
-
-
-class StateExitIntersection(State):
-    def setup(self):
-        print("Exiting intersection")
-
-    def step(self):
-        """
-        diff, _, _ = self.context.sense_line()
-
-        if self.context.branch_right:
-            self.context.set_speed(self.context.speed, 100)
-        else:
-            self.context.set_speed(self.context.speed, -100)
-
-        if diff > 20:
-            self.context.set_state(StateFollowing())
-        """
-        self.context.controller.on_for_distance(
-            SpeedRPM(self.context.speed), self.context.sensor_offset
-        )
-        if self.context.branch_right:
-            self.context.controller.turn_degrees(SpeedRPM(self.context.speed), 90)
-        else:
-            self.context.controller.turn_degrees(SpeedRPM(self.context.speed), -90)
-
-        self.context.set_state(StateFollowing(100))
-
-
-class StateDropPackage(State):
-    def setup(self):
-        print("Dropping package")
-
-    def step(self):
-        self.context.controller.on_for_distance(
-            SpeedRPM(self.context.speed), 10
-        )  # TODO: calibrate
-
-        self.context.forklift_motor.on_for_rotations(SpeedRPM(40), -1)
-        self.context.set_state(StateFinish())
-
-
-class StateFinish(State):
-    def setup(self):
-        print("Finished!")
-
-    def step(self):
-        self.context.controller.on_for_distance(
-            SpeedRPM(self.context.speed), -100
-        )  # TODO: calibrate
-
-        self.context.controller.turn_degrees(SpeedRPM(self.context.speed), 180)
-
-        self.context.sound.tone([(659, 100, 100), (659, 100, 100), (659, 100, 100)])
-
-        for i in range(3):
-            self.context.forklift_motor.on_for_rotations(SpeedRPM(40), 1)
-            self.context.forklift_motor.on_for_rotations(SpeedRPM(40), -1)
-
-        self.context.set_state(StateIdle())
 
 
 if __name__ == "__main__":
