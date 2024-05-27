@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-from __future__ import annotations
-
 from ev3dev2.motor import (
     LargeMotor,
     MediumMotor,
@@ -63,6 +61,9 @@ class Vehicle:
         self.color_sensor_right = ColorSensor(INPUT_1)
         self.color_sensor_left = ColorSensor(INPUT_4)
 
+        self.color_sensor_right.red_max, self.color_sensor_right.green_max, self.color_sensor_right.blue_max = 158,234,281
+        self.color_sensor_left.red_max, self.color_sensor_left.green_max, self.color_sensor_left.blue_max = 132,224,145
+
         self.controller = MoveDifferential(
             OUTPUT_A,
             OUTPUT_D,
@@ -74,11 +75,11 @@ class Vehicle:
 
         self.sound = Sound()
 
-    def set_state(self, new_state: State):
+    def set_state(self, new_state):
         self.state = new_state
         self.state.context = self
         self.state.setup()
-        self.state.step()
+        # self.state.step()
 
     def sense_line(self):
         right_val = self.color_sensor_right.reflected_light_intensity
@@ -90,9 +91,21 @@ class Vehicle:
     def sense_colour(self):
         color_right = self.color_sensor_right.rgb
         color_left = self.color_sensor_left.rgb
-
+        
+        """
         colorfullness_right = max(color_right) - min(color_right)
         colorfullness_left = max(color_left) - min(color_left)
+
+        if sum(color_right) > 240:
+            colorfullness_right = 0
+
+        if sum(color_left) > 240:
+            colorfullness_left = 0
+        """
+        colorfullness_right = -color_right[0] + (color_right[1] + color_right[2]) // 2
+        colorfullness_left = -color_left[0] + (color_left[1] + color_left[2]) // 2
+
+        print(color_right, -color_right[0] + color_right[1] + color_right[2], color_left, -color_left[0] + color_left[1] + color_left[2])
 
         return colorfullness_right, colorfullness_left
 
@@ -113,7 +126,7 @@ class Vehicle:
         self.branch_right = None
         self.holding_package = False
 
-        self.state = StateFollowing()
+        self.set_state(StateFollowing())
 
         os.system("clear")
         os.system("clear")
@@ -127,11 +140,11 @@ class Vehicle:
         self.controller.theta = math.pi / 2
 
         # zbazowanie wideł
-        while self.context.forklift_sensor.is_released:
-            self.context.forklift_motor.on(SpeedRPM(40))
+        while self.forklift_sensor.is_released:
+            self.forklift_motor.on(SpeedRPM(40))
 
-        self.context.forklift_motor.off()
-        self.context.forklift_motor.on_for_rotations(SpeedRPM(40), -1)
+        self.forklift_motor.off()
+        self.forklift_motor.on_for_rotations(SpeedRPM(40), -1)
 
         print("Type start to start following")
         while True:
@@ -166,7 +179,7 @@ class Vehicle:
 
 class LineFollower:
     def __init__(self, context: Vehicle):
-        self.pid = PID(2, 0.2, 0)
+        self.pid = PID(2.5, 0.2, 0)
         self.context = context
 
     def step(self, diff):
@@ -177,8 +190,6 @@ class LineFollower:
 
 
 class State:
-    _context: Vehicle
-
     @property
     def context(self):
         return self._context
@@ -201,46 +212,54 @@ class StateIdle(State):
 
 
 class StateFollowing(State):
-    def setup(self):
+    def setup(self, tick_limit=0):
         print("Following")
         self.follower = LineFollower(self._context)
+        self.tick_limit = tick_limit
 
     def step(self):
         diff, right_val, left_val = self.context.sense_line()
         self.follower.step(diff)
 
         if right_val < 15 and left_val < 15:
-            color_right = self.color_sensor_right.rgb
-            color_left = self.color_sensor_left.rgb
-
-            colorfullness_right = max(color_right) - min(color_right)
-            colorfullness_left = max(color_left) - min(color_left)
+            color_right, color_left = self.context.sense_colour()
         else:
-            colorfullness_left = 0
-            colorfullness_right = 0
+            color_right = 0
+            color_left = 0
 
-        if abs(colorfullness_right - colorfullness_left) > 40:
+        print(right_val, ' ', left_val, ' ', color_right, ' ', color_left) 
+
+        if abs(color_right - color_left) > 10 and max(color_right, color_left) > 50 and self.tick_limit == 0:
             self.context.set_state(StateEnterBranch())
-            if colorfullness_right > colorfullness_left:
+            if color_right > color_left:
                 self.context.branch_right = True
             else:
                 self.context.branch_right = False
+        
+        if self.tick_limit > 0:
+            self.tick_limit -= 1
 
 
 class StateEnterBranch(State):
     def setup(self):
         print("Entering branch")
+        """
+        if self.context.branch_right:
+            self.context.controller.turn_degrees(SpeedRPM(self.context.speed), -35)
+        else:
+            self.context.controller.turn_degrees(SpeedRPM(self.context.speed), 35)
+        """
 
     def step(self):
         diff, _, _ = self.context.sense_line()
-
         if self.context.branch_right:
-            self.context.set_speed(self.context.speed, 100)
+            self.context.set_speed(self.context.speed, 80)
         else:
-            self.context.set_speed(self.context.speed, -100)
+            self.context.set_speed(self.context.speed, -80)
 
         if diff > 20:
             self.context.set_state(StateSearchTarget())
+        #self.context.set_state(StateSearchTarget())
 
 
 class StateSearchTarget(State):
@@ -253,10 +272,11 @@ class StateSearchTarget(State):
         diff, right_val, left_val = self.context.sense_line()
         self.follower.step(diff)
 
-        if right_val < 15 and left_val < 15 and self.step_count > 100:
+        if right_val < 20 and left_val < 20 and self.step_count > 100:
             color_right, color_left = self.context.sense_colour()
 
-            if color_left > 40 or color_right > 40:  # TODO: calibration
+            print(color_left, ' ', color_right)
+            if color_left > 50 and color_right > 50:  # TODO: calibration
                 if self.context.holding_package:
                     self.context.set_state(StateDropPackage())
                 else:
@@ -273,7 +293,7 @@ class StatePickupPackage(State):
 
     def step(self):
         self.context.controller.on_for_distance(
-            self, SpeedRPM(self.context.speed), 100
+            SpeedRPM(self.context.speed), 0
         )  # TODO: calibrate
 
         while self.context.forklift_sensor.is_released:
@@ -282,22 +302,22 @@ class StatePickupPackage(State):
         self.context.forklift_motor.off()
         self.context.set_state(StateReturnToLine())
 
+        self.context.holding_package = True
+
 
 class StateReturnToLine(State):
     def setup(self):
         print("Returning to line")
 
     def step(self):
-        """
         self.context.controller.on_for_distance(
-            self, SpeedRPM(self.context.speed), -100
+            SpeedRPM(self.context.speed), 100
         )  # TODO: calibrate
-        """
         self.context.controller.turn_degrees(SpeedRPM(self.context.speed), 180)
 
         self.context.set_state(StateReturnToIntersection())
 
-
+"""
 class StateReturnToIntersection(State):
     def setup(self):
         print("Returning to intersection")
@@ -324,7 +344,7 @@ class StateReturnToIntersection(State):
             SpeedRPM(self.context.speed), 90 # TODO: calibrate
         )
         self.context.set_state(StateFollowing())
-"""
+
 
 
 class StateExitIntersection(State):
@@ -332,6 +352,7 @@ class StateExitIntersection(State):
         print("Exiting intersection")
 
     def step(self):
+        """
         diff, _, _ = self.context.sense_line()
 
         if self.context.branch_right:
@@ -341,6 +362,13 @@ class StateExitIntersection(State):
 
         if diff > 20:
             self.context.set_state(StateFollowing())
+        """
+        if self.context.branch_right:
+            self.context.controller.turn_degrees(SpeedRPM(self.context.speed), 30)
+        else:
+            self.context.controller.turn_degrees(SpeedRPM(self.context.speed), -30)
+        
+        self.context.set_state(StateFollowing(100))
 
 
 class StateDropPackage(State):
@@ -349,8 +377,9 @@ class StateDropPackage(State):
 
     def step(self):
         self.context.controller.on_for_distance(
-            self, SpeedRPM(self.context.speed), 100
+            SpeedRPM(self.context.speed), 10
         )  # TODO: calibrate
+
 
         self.context.forklift_motor.on_for_rotations(SpeedRPM(40), -1)
         self.context.set_state(StateFinish())
@@ -362,7 +391,7 @@ class StateFinish(State):
 
     def step(self):
         self.context.controller.on_for_distance(
-            self, SpeedRPM(self.context.speed), 100
+            SpeedRPM(self.context.speed), -100
         )  # TODO: calibrate
 
         self.context.controller.turn_degrees(SpeedRPM(self.context.speed), 180)

@@ -73,6 +73,9 @@ class Vehicle:
         self.color_sensor_right = ColorSensor(INPUT_1)
         self.color_sensor_left = ColorSensor(INPUT_4)
 
+        self.color_sensor_right.red_max, self.color_sensor_right.green_max, self.color_sensor_right.blue_max = 158,234,281
+        self.color_sensor_left.red_max, self.color_sensor_left.green_max, self.color_sensor_left.blue_max = 132,224,145
+
         self.controller = MoveDifferential(
             OUTPUT_A,
             OUTPUT_D,
@@ -237,6 +240,31 @@ Wybierz komendę:
                     print(
                         str(right_val) + "," + str(left_val) + "," + ","
                     )  # values to log
+
+            if cmd == "color":
+                while True:
+                    color_right = self.color_sensor_right.rgb
+                    color_left = self.color_sensor_left.rgb
+
+
+                    print(
+                        ",".join(
+                            [
+                                str(x)
+                                for x in [
+                                    color_right[0],
+                                    color_right[1],
+                                    color_right[2],
+                                    -color_right[0] + (color_right[1] + color_right[2]) // 2,
+                                    "\n",
+                                    color_left[0],
+                                    color_left[1],
+                                    color_left[2],
+                                    -color_left[0] + (color_left[1] + color_left[2]) // 2
+                                ]
+                            ]
+                        )
+                    )
 
             print("Done.")
             self.controller.on(SpeedNativeUnits(0), SpeedNativeUnits(0))
