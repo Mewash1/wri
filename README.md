@@ -1,5 +1,7 @@
 # Wstęp do Robotyki dla Informatyków - Sirius Mini
 
+[Link do repozytorium](https://github.com/Mewash1/wri/tree/main)
+
 # Autorzy
 
 -   Adam Jeliński
