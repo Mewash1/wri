@@ -29,7 +29,7 @@ Oczywiście mechanizm podnoszenia i opuszczania wideł jest sterowany przez prog
 
 ![sirius_mini](docs/sirius_mini.jpg)
 
-W celu lepszego zaplanowania robota, stworzyliśmy dokładną replikę naszego robota w programie Bricklink Studio 2.0. Dzięki temu mogliśmy myśleć nad rozwiązaniami poza zajęciami i mieliśmy możliwość stworzenia ładnych renderów do tej dokumentacji. Model znajduje się w pliku `sirius_mini.io`.
+W celu lepszego zaplanowania robota, stworzyliśmy dokładną replikę naszego robota w programie [Bricklink Studio 2.0](https://www.bricklink.com/v3/studio/download.page). Dzięki temu mogliśmy myśleć nad rozwiązaniami poza zajęciami i mieliśmy możliwość stworzenia ładnych renderów do tej dokumentacji. Model znajduje się w pliku `sirius_mini.io`.
 
 ## Baza jezdna
 
